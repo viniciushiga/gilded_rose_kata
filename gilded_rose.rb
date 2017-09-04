@@ -1,48 +1,105 @@
 def update_quality(items)
   items.each do |item|
-    if item.name != 'Aged Brie' && item.name != 'Backstage passes to a TAFKAL80ETC concert'
-      if item.quality > 0
-        if item.name != 'Sulfuras, Hand of Ragnaros'
-          item.quality -= 1
-        end
-      end
+    ItemQualityUpdaterContext.update_quality(item)
+  end
+end
+
+class ItemQualityUpdaterContext
+  def self.update_quality(item)
+    context = get_context(item)
+    item.extend(context)
+    item.update_quality
+  end
+
+  private
+
+  def self.get_context(item)
+    case item.name
+    when /^Backstage/
+      BackstagePassItem
+    when /^Aged Brie/
+      AgedBrieItem
+    when /^Sulfuras/
+      SulfurasItem
+    when /^Conjured/
+      ConjuredItem
     else
-      if item.quality < 50
-        item.quality += 1
-        if item.name == 'Backstage passes to a TAFKAL80ETC concert'
-          if item.sell_in < 11
-            if item.quality < 50
-              item.quality += 1
-            end
-          end
-          if item.sell_in < 6
-            if item.quality < 50
-              item.quality += 1
-            end
-          end
-        end
-      end
+      NormalItem
     end
-    if item.name != 'Sulfuras, Hand of Ragnaros'
-      item.sell_in -= 1
+  end
+end
+
+module NormalItem
+  def update_quality
+    self.sell_in -= 1
+
+    if self.sell_in < 0
+      self.quality -= 2
+    else
+      self.quality -= 1
     end
-    if item.sell_in < 0
-      if item.name != "Aged Brie"
-        if item.name != 'Backstage passes to a TAFKAL80ETC concert'
-          if item.quality > 0
-            if item.name != 'Sulfuras, Hand of Ragnaros'
-              item.quality -= 1
-            end
-          end
-        else
-          item.quality = item.quality - item.quality
-        end
-      else
-        if item.quality < 50
-          item.quality += 1
-        end
-      end
+
+    if self.quality < 0
+      self.quality = 0
     end
+  end
+end
+
+module ConjuredItem
+  def update_quality
+    self.sell_in -= 1
+
+    if self.sell_in < 0
+      self.quality -= 4
+    else
+      self.quality -= 2
+    end
+
+    if self.quality < 0
+      self.quality = 0
+    end
+  end
+end
+
+module AgedBrieItem
+  def update_quality
+    self.sell_in -= 1
+
+    self.quality += 1
+
+    if self.sell_in < 0
+      self.quality += 1
+    end
+
+    if self.quality > 50
+      self.quality = 50
+    end
+  end
+end
+
+module BackstagePassItem
+  def update_quality
+    self.sell_in -= 1
+
+    if self.sell_in < 0
+      self.quality = 0
+    elsif self.sell_in < 5
+      self.quality += 3
+    elsif self.sell_in < 10
+      self.quality += 2
+    else
+      self.quality += 1
+    end
+
+    if self.quality > 50
+      self.quality = 50
+    end
+  end
+end
+
+module SulfurasItem
+  def update_quality
+    # does nothing
   end
 end
 
