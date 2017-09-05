@@ -1,103 +1,110 @@
 def update_quality(items)
   items.each do |item|
-    ItemQualityUpdaterContext.update_quality(item)
+    ItemQualityUpdater.update_quality(item)
   end
 end
 
-class ItemQualityUpdaterContext
+class ItemQualityUpdater
   def self.update_quality(item)
-    context = get_context(item)
-    item.extend(context)
-    item.update_quality
+    get_quality_updater_for(item).update_quality
   end
 
   private
 
-  def self.get_context(item)
+  def self.get_quality_updater_for(item)
     case item.name
     when /^Backstage/
-      BackstagePassItem
+      BackstagePassQualityUpdater.new(item)
     when /^Aged Brie/
-      AgedBrieItem
+      AgedBrieQualityUpdater.new(item)
     when /^Sulfuras/
-      SulfurasItem
+      SulfurasQualityUpdater.new(item)
     when /^Conjured/
-      ConjuredItem
+      ConjuredItemQualityUpdater.new(item)
     else
-      NormalItem
+      NormalItemQualityUpdater.new(item)
     end
   end
 end
 
-module NormalItem
-  def update_quality
-    self.sell_in -= 1
+class BaseItemQualityUpdater
+  attr_reader :item, :max_quality, :min_quality
 
-    if self.sell_in < 0
-      self.quality -= 2
+  def initialize(item)
+    @item = item
+    @max_quality = 50
+    @min_quality = 0
+  end
+
+  def update_quality
+    degrease_sell_in
+    set_new_quality
+  end
+
+  def degrease_sell_in
+    item.sell_in -= 1
+  end
+
+  def set_new_quality
+    raise NotImplementedError
+  end
+
+  def is_after_sell_date?
+    item.sell_in < 0
+  end
+
+  def increase_quality_by(amount)
+    item.quality += amount
+    item.quality = max_quality if item.quality > max_quality
+  end
+
+  def degrease_quality_by(amount)
+    item.quality -= amount
+    item.quality = min_quality if item.quality < min_quality
+  end
+end
+
+class NormalItemQualityUpdater < BaseItemQualityUpdater
+  def set_new_quality
+    is_after_sell_date? ? degrease_quality_by(2) : degrease_quality_by(1)
+  end
+end
+
+class ConjuredItemQualityUpdater < BaseItemQualityUpdater
+  def set_new_quality
+    is_after_sell_date? ? degrease_quality_by(4) : degrease_quality_by(2)
+  end
+end
+
+class AgedBrieQualityUpdater < BaseItemQualityUpdater
+  def set_new_quality
+    is_after_sell_date? ? increase_quality_by(2) : increase_quality_by(1)
+  end
+end
+
+class BackstagePassQualityUpdater < BaseItemQualityUpdater
+  def set_new_quality
+    if is_after_sell_date?
+      item.quality = 0
+    elsif is_very_close_to_sell_date?
+      increase_quality_by(3)
+    elsif is_medium_close_to_sell_date?
+      increase_quality_by(2)
     else
-      self.quality -= 1
+      increase_quality_by(1)
     end
+  end
 
-    if self.quality < 0
-      self.quality = 0
-    end
+  def is_very_close_to_sell_date?
+    item.sell_in < 5
+  end
+
+  def is_medium_close_to_sell_date?
+    item.sell_in < 10
   end
 end
 
-module ConjuredItem
-  def update_quality
-    self.sell_in -= 1
-
-    if self.sell_in < 0
-      self.quality -= 4
-    else
-      self.quality -= 2
-    end
-
-    if self.quality < 0
-      self.quality = 0
-    end
-  end
-end
-
-module AgedBrieItem
-  def update_quality
-    self.sell_in -= 1
-
-    self.quality += 1
-
-    if self.sell_in < 0
-      self.quality += 1
-    end
-
-    if self.quality > 50
-      self.quality = 50
-    end
-  end
-end
-
-module BackstagePassItem
-  def update_quality
-    self.sell_in -= 1
-
-    if self.sell_in < 0
-      self.quality = 0
-    elsif self.sell_in < 5
-      self.quality += 3
-    elsif self.sell_in < 10
-      self.quality += 2
-    else
-      self.quality += 1
-    end
-
-    if self.quality > 50
-      self.quality = 50
-    end
-  end
-end
-
-module SulfurasItem
+class SulfurasQualityUpdater < BaseItemQualityUpdater
   def update_quality
     # does nothing
   end
